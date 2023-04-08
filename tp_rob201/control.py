@@ -1,4 +1,6 @@
 """ A set of robotics control functions """
+import numpy as np
+import random
 
 
 def reactive_obst_avoid(lidar):
@@ -7,11 +9,34 @@ def reactive_obst_avoid(lidar):
     lidar : placebot object with lidar data
     """
     # TODO for TP1
+    dist = lidar.get_sensor_values()
+    angles = lidar.get_ray_angles()
+    delta = 2*np.pi/50
 
-    command = {"forward": 0,
-               "rotation": 0}
+    # Check if object in front
+    frontObject = False
+    indexTable = [i for i in range(0, len(dist)) if abs(angles[i]) < delta]
+    distTable = dist[indexTable]
+    for elem in distTable:
+        if elem < 100:
+            frontObject = True
+
+    if (frontObject):
+        if (dist[len(dist)//2] > 20):
+            maxDistanceIndex = np.argmax(dist)
+            rotation = angles[maxDistanceIndex] / (2*np.pi)
+            command = {"forward": 1,
+                       "rotation": rotation}
+        else:
+            rotation = random.randint(-180, 180)/180
+            command = {"forward": -1,
+                       "rotation": rotation}
+    else:
+        command = {"forward": 1,
+                   "rotation": 0}
 
     return command
+
 
 def potential_field_control(lidar, pose, goal):
     """

@@ -49,8 +49,8 @@ class TinySlam:
         Convert from map coordinates to world coordinates
         x_map, y_map : list of x and y coordinates in cell numbers (~pixels)
         """
-        x_world = self.x_min_world + x_map *  self.resolution
-        y_world = self.y_min_world + y_map *  self.resolution
+        x_world = self.x_min_world + x_map * self.resolution
+        y_world = self.y_min_world + y_map * self.resolution
 
         if isinstance(x_world, np.ndarray):
             x_world = x_world.astype(float)
@@ -121,7 +121,6 @@ class TinySlam:
 
         self.occupancy_map[x_px, y_px] += val
 
-
     def score(self, lidar, pose):
         """
         Computes the sum of log probabilities of laser end points in the map
@@ -166,7 +165,28 @@ class TinySlam:
         pose : [x, y, theta] nparray, corrected pose in world coordinates
         """
         # TODO for TP3
+        angles = lidar.get_ray_angles()
+        dist = lidar.get_sensor_values()
+        detection_positions = np.empty([len(angles), 2])
 
+        detection_positions = np.column_stack((
+            np.cos(angles + pose[2]) * dist + pose[0],
+            np.sin(angles + pose[2]) * dist + pose[1]
+        ))
+
+        for element in detection_positions:
+            self.add_map_line(pose[0], pose[1], element[0],
+                              element[1], -1)  # s arreter un peu avant pour tracer la ligne
+
+        self.add_map_points(
+            detection_positions[:, 0], detection_positions[:, 1], 1)
+
+        minvalue = -4
+        self.occupancy_map = np.where(
+            self.occupancy_map <= minvalue, minvalue, self.occupancy_map)
+        maxvalue = 4
+        self.occupancy_map = np.where(
+            self.occupancy_map >= maxvalue, maxvalue, self.occupancy_map)
 
     def plan(self, start, goal):
         """
@@ -259,11 +279,11 @@ class TinySlam:
         # Remove after TP1
 
         ranges = np.random.rand(3600)
-        ray_angles = np.arange(-np.pi,np.pi,np.pi/1800)
+        ray_angles = np.arange(-np.pi, np.pi, np.pi/1800)
 
         # Poor implementation of polar to cartesian conversion
         points = []
         for i in range(3600):
             pt_x = ranges[i] * np.cos(ray_angles[i])
             pt_y = ranges[i] * np.sin(ray_angles[i])
-            points.append([pt_x,pt_y])
+            points.append([pt_x, pt_y])

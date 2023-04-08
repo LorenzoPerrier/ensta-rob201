@@ -9,7 +9,7 @@ from my_robot_slam import MyRobotSlam
 from worlds.my_world import MyWorld
 
 import random
-    
+
 if __name__ == '__main__':
     lidar_params = LidarParams()
     lidar_params.noise_enable = True
@@ -24,9 +24,10 @@ if __name__ == '__main__':
     # odometer_params.param3 = 0.04  # 0.04 # degree/meter, influence of translation to rotation
     # odometer_params.param4 = 0.01  # 0.01 # degree/degree, influence of rotation to rotation
 
-    my_robot = MyRobotSlam(lidar_params=lidar_params, odometer_params=odometer_params)
+    my_robot = MyRobotSlam(lidar_params=lidar_params,
+                           odometer_params=odometer_params)
     my_world = MyWorld(robot=my_robot)
     simulator = Simulator(the_world=my_world,
                           use_keyboard=False)
-    
+
     simulator.run()
