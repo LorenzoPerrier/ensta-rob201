@@ -130,6 +130,31 @@ class TinySlam:
         # TODO for TP4
 
         score = 0
+        max_distance = 500
+        # Get angles and distances and get rid of max
+        angles = lidar.get_ray_angles()
+        dist = lidar.get_sensor_values()
+        mask = dist < max_distance
+        angles = angles[mask]
+        dist = dist[mask]
+
+        detection_positions = np.empty([len(angles), 2])
+
+        detection_positions = np.column_stack((
+            np.cos(angles + pose[2]) * dist + pose[0],
+            np.sin(angles + pose[2]) * dist + pose[1]
+        ))
+
+        points = self._conv_world_to_map(
+            detection_positions[:, 0], detection_positions[:, 1])
+        x_index = points[0]
+        y_index = points[1]
+
+        x_index = np.where(x_index <= 0, 0, x_index)
+        y_index = np.where(y_index <= 0, 0, y_index)
+        x_index = np.where(x_index >= 800, 799, x_index)
+        y_index = np.where(y_index >= 800, 799, y_index)
+        score = np.sum(self.occupancy_map[x_index, y_index])
 
         return score
 
@@ -142,7 +167,18 @@ class TinySlam:
                         use self.odom_pose_ref if not given
         """
         # TODO for TP4
-        corrected_pose = odom_pose
+        if odom_pose_ref is None:
+            odom_pose_ref = self.odom_pose_ref
+
+        dist = np.sqrt((odom[0])**2 +
+                       (odom[1])**2)
+        teta = np.arctan2(odom[1], odom[0])
+        angle = odom_pose_ref[2] + teta
+        x = np.cos(angle) * dist + odom_pose_ref[0]
+
+        y = np.sin(angle) * dist + odom_pose_ref[1]
+
+        corrected_pose = np.array([x, y, odom[2] + odom_pose_ref[2]])
 
         return corrected_pose
 
@@ -153,8 +189,37 @@ class TinySlam:
         odom : [x, y, theta] nparray, raw odometry position
         """
         # TODO for TP4
+        init_pose = self.get_corrected_pose(odom, self.odom_pose_ref)
+        best_score = self.score(lidar, init_pose)
+        best_odom_ref = self.odom_pose_ref
 
-        best_score = 0
+        number_of_tests = 500
+        iteration_seuil = 200
+        N = 0
+        while (N < iteration_seuil and number_of_tests > 0):
+            variance = 1/10
+            offsets = np.random.normal(
+                loc=0, scale=np.sqrt(variance), size=(3,))
+            offsets[2] /= 100
+            # random_angle = np.random.normal(
+            #     loc=0, scale=np.sqrt(variance/180), size=(1,))
+            # offsets = np.array([offset[0], offset[1], random_angle])
+            new_odom_ref = best_odom_ref + offsets
+            new_pose = self.get_corrected_pose(odom, new_odom_ref)
+            score = self.score(lidar, new_pose)
+            if (score > best_score):
+                best_score = score
+                best_odom_ref = new_odom_ref
+                number_of_tests -= 1
+                N = 0
+            else:
+                number_of_tests -= 1
+                N += 1
+        # if (np.linalg.norm(self.odom_pose_ref - best_odom_ref) < 1):
+
+        self.odom_pose_ref = best_odom_ref
+
+        # print("score :", best_score, " odom_pose_ref :", self.odom_pose_ref)
 
         return best_score
 
@@ -175,16 +240,18 @@ class TinySlam:
         ))
 
         for element in detection_positions:
-            self.add_map_line(pose[0], pose[1], element[0],
-                              element[1], -1)  # s arreter un peu avant pour tracer la ligne
+
+            el_0 = element[0] - (element[0] - pose[0])*0.1
+            el_1 = element[1] - (element[1] - pose[1]) * 0.1
+            self.add_map_line(pose[0], pose[1], el_0, el_1, -1)
 
         self.add_map_points(
             detection_positions[:, 0], detection_positions[:, 1], 1)
 
-        minvalue = -4
+        minvalue = -8
         self.occupancy_map = np.where(
             self.occupancy_map <= minvalue, minvalue, self.occupancy_map)
-        maxvalue = 4
+        maxvalue = 8
         self.occupancy_map = np.where(
             self.occupancy_map >= maxvalue, maxvalue, self.occupancy_map)
 
